@@ -1,0 +1,50 @@
+[project]
+name = "capcut-mcp"
+version = "0.2.0"
+description = "MCP server that lets an AI assistant edit CapCut desktop projects by reading and writing their draft files."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["mcp>=2,<3", "pycapcut==0.0.4"]
+
+[project.optional-dependencies]
+# Speech to text for auto_captions and transcribe_media. faster-whisper 1.2 calls PyAV with an
+# argument that PyAV 19 removed, so PyAV is held below 19.
+transcribe = ["faster-whisper>=1.2,<2", "av<19"]
+
+[project.urls]
+Homepage = "https://github.com/mynrd/capcut_mcp"
+Issues = "https://github.com/mynrd/capcut_mcp/issues"
+Changelog = "https://github.com/mynrd/capcut_mcp/blob/main/CHANGELOG.md"
+
+[project.scripts]
+capcut-mcp = "capcut_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/capcut_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = [
+    "E501",  # a few long lines are tool descriptions and tables that read better unbroken
+    "B904",  # errors are re-raised with `from None` on purpose, to keep messages short for the assistant
+    "B905",  # zip() over lists of different lengths is used on purpose (neighbouring pairs)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E731"]

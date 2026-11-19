@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Windows, because that is where CapCut runs and where the server is developed.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install FFmpeg
+        run: choco install ffmpeg --no-progress -y
+
+      - name: Install the environment
+        run: uv sync
+
+      - name: Lint
+        run: uv run --no-sync ruff check src tests tools
+
+      - name: Test
+        run: uv run --no-sync pytest -q

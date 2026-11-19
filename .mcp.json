@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "capcut": {
+      "command": "uv",
+      "args": ["run", "--no-sync", "python", "-m", "capcut_mcp.server"]
+    }
+  }
+}

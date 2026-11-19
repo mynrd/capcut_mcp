@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local settings and secrets
+.env
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Temporary files the server writes while saving a project
+*.mcp-tmp
