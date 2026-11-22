@@ -13,7 +13,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import __version__, analysis, catalogue, compat
+from . import __version__, analysis, catalogue, compat, speech
 from .draft import _content_files, _newest, project_folders
 from .env import CapCutError, capcut_running, data_dir, drafts_dir
 from .media import run_tool
@@ -144,10 +144,28 @@ def report() -> dict:
             "Optional. Run 'uv sync --extra transcribe' in the server's folder to let the server "
             "turn speech into text (auto_captions, transcribe_media).")
 
+    voice: dict = {"available": speech.available()}
+    if voice["available"]:
+        try:
+            found = speech.voices()
+            voice["voices"] = [v["name"] for v in found["voices"]]
+            voice["default"] = found["default"]
+            if not found["voices"]:
+                warnings.append("Windows has no speech voices enabled, so add_voiceover cannot "
+                                "speak. Voices come with Windows' speech and language settings.")
+        except CapCutError as error:
+            voice["available"] = False
+            warnings.append(f"Text to speech (add_voiceover) does not work here: {error}")
+    else:
+        voice["note"] = ("add_voiceover uses the voices built into Windows and is not available "
+                         "on this system. Voice-overs made elsewhere can be placed with add_audio.")
+    out["text_to_speech"] = voice
+
     home = data_dir()
     out["storage"] = {"folder": str(home), "megabytes": {
         name: _megabytes(home / name)
-        for name in ("backups", "previews", "frames", "stills", "transcripts") if (home / name).is_dir()}}
+        for name in ("backups", "previews", "frames", "stills", "transcripts", "voiceovers")
+        if (home / name).is_dir()}}
 
     if problems:
         out["problems"] = problems

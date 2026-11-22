@@ -15,7 +15,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from . import analysis, assist, draft, library, lint, schema
+from . import analysis, assist, draft, library, lint, schema, speech
 from . import captions as srt
 from . import doctor as health
 from .draft import Project, Session, editing
@@ -49,6 +49,9 @@ Seeing and hearing:
   package is installed.
 - cut_silence removes the pauses from a talking clip, auto_captions writes subtitles from the
   speech, duck_audio lowers music while a voice plays.
+- add_voiceover speaks text, or reads a project's captions aloud in time with them, using the
+  voices built into Windows (list_voices names them). They sound synthetic; for a natural
+  voice the user makes the file elsewhere and add_audio places it.
 - Before telling the user an edit is ready, run check_project and fix what it reports.
 
 Safety:
@@ -646,6 +649,44 @@ def add_audio(project: str, path: str, start: float | None = None, source_start:
                            source_end=source_end, duration=duration, speed=speed, volume=volume,
                            fade_in=fade_in, fade_out=fade_out)
     return _saved(target, seg)
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_voices() -> dict:
+    """List the computer voices add_voiceover can speak with, and which one is the default.
+
+    These are the speech voices built into Windows, with their language and gender. More,
+    including other languages, come with Windows' own speech and language settings.
+    """
+    return speech.voices()
+
+
+@edit_tool
+def add_voiceover(project: str, text: str | None = None, from_text_track: int | None = None,
+                  voice: str | None = None, rate: int = 0, start: float | None = None,
+                  track: int | None = None, volume: float = 1.0, fit: bool = True,
+                  folder: str | None = None) -> dict:
+    """Make a voice-over from text with a computer voice (text to speech) and put it on the timeline.
+
+    Give `text` to have it spoken as one clip beginning at `start` (default: the start of the
+    video, or after the last audio on `track` when one is given). Or give `from_text_track` to read the captions on that text track
+    aloud: they are joined into sentences, and each sentence is spoken as its own clip starting
+    when its first caption appears, so voice and captions stay together. With fit=true (the
+    default) a sentence that would run into the next one is spoken faster until it fits; one
+    that cannot fit even at the fastest rate starts late, and the result says so.
+
+    `voice` is a name or part of one from list_voices (default: the computer's default voice).
+    `rate` is the speaking pace from -10 (slowest) to 10 (fastest), 0 being the voice's normal
+    pace. The voice goes on a new audio track unless `track` is given. The audio files are kept
+    in this server's data folder, or in `folder`; the project plays them from there, so they
+    must not be deleted. Same text, voice and rate reuse the same file. Uses the voices built
+    into Windows: free and offline, but synthetic-sounding.
+    """
+    target = Project.open(project)
+    result = assist.voiceover(target, text=text, text_track=from_text_track, voice=voice,
+                              rate=rate, start=start, track=track, volume=volume, fit=fit,
+                              folder=folder)
+    return _saved(target, **result)
 
 
 @edit_tool

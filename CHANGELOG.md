@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `add_voiceover`: text to speech with the voices built into Windows, free and offline. It
+  speaks text as one clip, or reads the captions on a text track aloud: one clip per sentence,
+  each starting with its first caption, spoken faster where it would run into the next one.
+  The WAV files are reused when the same line is asked for again.
+- `list_voices`: the Windows voices on this computer. PowerShell 7, when installed, also
+  offers the newer voices that Windows PowerShell 5.1 does not see.
+- `doctor` reports whether text to speech works and which voices there are.
+
 ## 0.2.0 (2026-11-18)
 
 ### Fixed

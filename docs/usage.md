@@ -162,6 +162,25 @@ to back. `auto_captions` writes subtitles timed to the speech; it needs the opti
 package (`uv sync --extra transcribe`). `duck_audio` lowers the music while the voice plays.
 Do the cutting first and the captions after, so the captions match the final timing.
 
+### Voice-over from text
+
+> Read the captions aloud with a male voice.
+
+> Say "Follow for more facts" at 24 seconds in Zira's voice, a little faster.
+
+`add_voiceover` uses the speech voices built into Windows; `list_voices` shows which ones this
+computer has. With `from_text_track` it reads the captions on that text track aloud: captions
+are joined into sentences, and each sentence becomes its own audio clip starting when its first
+caption appears. A sentence that would run into the next one is spoken faster until it fits;
+if even the fastest pace is too slow, it starts late and Claude says which lines. With `text`
+it speaks the words you give as one clip. `rate` sets the pace, from -10 to 10.
+
+The voice goes on an audio track of its own. The WAV files are kept in the server's data folder
+(see below), or in a folder you name, for example next to your footage. The project plays them
+from there, so leave them in place. The voices are free and work offline, but they sound like a
+computer. For a natural voice, make the file with another service and ask Claude to place it:
+that is `add_audio`. CapCut's own text-to-speech voices cannot be used from outside CapCut.
+
 `analyze_media` reports where a file is silent, where its picture cuts, how loud it is, and a
 level graph over time. `transcribe_media` returns what is said with timestamps, which is how
 Claude can cut on a sentence: "remove the part where I talk about pricing".
@@ -303,6 +322,8 @@ it downloaded every one in the test, Pro items included. See
 | A note that the project "was last saved by CapCut 9.x" | That version has not been through the check here | Edits are allowed. Look at the result in CapCut; [the findings](capcut-format.md#re-checking-against-a-new-capcut-version) say how to check properly |
 | "Another edit of '…' is still running" | Two edits of one project at the same moment | Retry; send edits one after another, or together as a `batch` |
 | "Transcription is an optional extra that is not installed" | The speech package is missing | Run `uv sync --extra transcribe` in the server folder and restart the server |
+| "No voice called…" | That voice is not installed on this computer | Ask Claude to `list_voices` and pick one of those |
+| A voice-over line "starts late" | The sentence is too long to say before the next caption, even at the fastest pace | Shorten the wording, give the captions more room, or ask for a higher `rate` |
 | A mask, chroma key or voice effect does nothing in CapCut | Not yet confirmed for your CapCut version | Apply it once by hand in CapCut and tell Claude; it can then copy your own with `copy_segment` |
 | "…is not readable JSON" | This CapCut version encrypts its project files | Not supported; the project is left untouched |
 | "ffprobe was not found" | FFmpeg is not installed or not on `PATH` | Install FFmpeg, or set `FFPROBE_PATH` and `FFMPEG_PATH` |
@@ -321,3 +342,4 @@ Everything the server writes outside CapCut's own folders is under `%LOCALAPPDAT
 | `tour\` | Test media made by `tools/new_features_tour.py`. **Its demo project refers to these files** | Once that project is deleted |
 | `previews\` | Videos made by `render_preview` | Yes |
 | `stills\<project>\` | Images made by `freeze_frame`. **Projects refer to these files** | No, not while a project uses them |
+| `voiceovers\` | Speech made by `add_voiceover`, one WAV file per line. **Projects refer to these files** | No, not while a project uses them |

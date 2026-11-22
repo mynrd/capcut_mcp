@@ -2,14 +2,14 @@
 
 Generated from the server by `tools/gen_tool_reference.py`; do not edit by hand.
 
-The server has 55 tools. Most take `project`, the name of a CapCut project as shown by `list_projects`. `segment` is a segment id from `get_timeline`; its first 8 characters are enough. All times are in seconds. See the [usage guide](usage.md) for how the pieces fit together.
+The server has 57 tools. Most take `project`, the name of a CapCut project as shown by `list_projects`. `segment` is a segment id from `get_timeline`; its first 8 characters are enough. All times are in seconds. See the [usage guide](usage.md) for how the pieces fit together.
 
 ## Contents
 
 - **Projects:** [`list_projects`](#list_projects), [`create_project`](#create_project), [`duplicate_project`](#duplicate_project), [`get_timeline`](#get_timeline), [`set_canvas`](#set_canvas), [`relink_media`](#relink_media), [`check_project`](#check_project), [`doctor`](#doctor)
 - **Undo, checkpoints and batches:** [`undo`](#undo), [`redo`](#redo), [`checkpoint`](#checkpoint), [`batch`](#batch)
 - **Looking at and listening to media:** [`probe_media`](#probe_media), [`extract_frames`](#extract_frames), [`preview_timeline`](#preview_timeline), [`render_preview`](#render_preview), [`analyze_media`](#analyze_media), [`transcribe_media`](#transcribe_media), [`list_fonts`](#list_fonts)
-- **Adding clips, audio and text:** [`add_clips`](#add_clips), [`add_audio`](#add_audio), [`add_text`](#add_text), [`add_captions`](#add_captions), [`auto_captions`](#auto_captions), [`update_text`](#update_text), [`export_captions`](#export_captions)
+- **Adding clips, audio and text:** [`add_clips`](#add_clips), [`add_audio`](#add_audio), [`add_voiceover`](#add_voiceover), [`list_voices`](#list_voices), [`add_text`](#add_text), [`add_captions`](#add_captions), [`auto_captions`](#auto_captions), [`update_text`](#update_text), [`export_captions`](#export_captions)
 - **Cutting and arranging:** [`trim_segment`](#trim_segment), [`split_segment`](#split_segment), [`cut_range`](#cut_range), [`cut_silence`](#cut_silence), [`move_segment`](#move_segment), [`delete_segments`](#delete_segments), [`arrange_track`](#arrange_track), [`replace_media`](#replace_media), [`freeze_frame`](#freeze_frame)
 - **Speed and sound:** [`set_speed`](#set_speed), [`set_volume`](#set_volume), [`set_track_volume`](#set_track_volume), [`duck_audio`](#duck_audio), [`set_audio_effect`](#set_audio_effect)
 - **Framing and animation:** [`set_transform`](#set_transform), [`crop_segment`](#crop_segment), [`set_background`](#set_background), [`fade_segment`](#fade_segment), [`set_keyframes`](#set_keyframes), [`set_mask`](#set_mask), [`set_chroma_key`](#set_chroma_key), [`clear_segment`](#clear_segment)
@@ -356,6 +356,48 @@ different tracks.
 | `fade_in` | number | `0.0` |  |
 | `fade_out` | number | `0.0` |  |
 | `speed` | number | `1.0` |  |
+
+### add_voiceover
+
+Make a voice-over from text with a computer voice (text to speech) and put it on the timeline.
+
+Give `text` to have it spoken as one clip beginning at `start` (default: the start of the
+video, or after the last audio on `track` when one is given). Or give `from_text_track` to read the captions on that text track
+aloud: they are joined into sentences, and each sentence is spoken as its own clip starting
+when its first caption appears, so voice and captions stay together. With fit=true (the
+default) a sentence that would run into the next one is spoken faster until it fits; one
+that cannot fit even at the fastest rate starts late, and the result says so.
+
+`voice` is a name or part of one from list_voices (default: the computer's default voice).
+`rate` is the speaking pace from -10 (slowest) to 10 (fastest), 0 being the voice's normal
+pace. The voice goes on a new audio track unless `track` is given. The audio files are kept
+in this server's data folder, or in `folder`; the project plays them from there, so they
+must not be deleted. Same text, voice and rate reuse the same file. Uses the voices built
+into Windows: free and offline, but synthetic-sounding.
+
+| Parameter | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `project` | text | required |  |
+| `text` | text | optional |  |
+| `from_text_track` | whole number | optional |  |
+| `voice` | text | optional |  |
+| `rate` | whole number | `0` |  |
+| `start` | number | optional |  |
+| `track` | whole number | optional |  |
+| `volume` | number | `1.0` |  |
+| `fit` | true/false | `true` |  |
+| `folder` | text | optional |  |
+
+### list_voices
+
+List the computer voices add_voiceover can speak with, and which one is the default.
+
+These are the speech voices built into Windows, with their language and gender. More,
+including other languages, come with Windows' own speech and language settings.
+
+*Does not change the project.*
+
+Takes no parameters.
 
 ### add_text
 

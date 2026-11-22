@@ -1,14 +1,22 @@
-"""Edits that depend on what is in the sound: cutting silences, ducking music, captions from speech.
+"""Edits that depend on the sound: cutting silences, ducking music, captions from speech, and
+voice-overs made from text.
 
-analysis.py reports facts about a media file in the file's own time. This module turns them into
-changes on the timeline, where a clip may start later, be trimmed, and play faster or slower.
+analysis.py reports facts about a media file in the file's own time, and speech.py makes speech
+from text. This module turns both into changes on the timeline, where a clip may start later, be
+trimmed, and play faster or slower.
 """
 
 from __future__ import annotations
 
-from . import analysis
+import math
+
+from . import analysis, schema, speech
 from .draft import Project
 from .env import CapCutError
+
+VOICE_GAP = 0.1  # seconds kept free between one spoken line and the next
+SENTENCE_PAUSE = 1.0  # a pause this long between captions ends a sentence without punctuation
+FIT_ROUNDS = 4  # attempts at a faster rate for a line that runs into the next one
 
 
 def _sound_clip(project: Project, ref: str, purpose: str) -> tuple[dict, dict, dict]:
@@ -193,3 +201,126 @@ def auto_captions(project: Project, *, kind: str = "video", track: int = 0,
     return {"captions_added": len(added), "language": language_found, "text_track": text_track,
             "first_id": added[0]["id"][:8], "last_id": added[-1]["id"][:8],
             "sample": [line["text"] for line in lines[:5]]}
+
+
+def caption_sentences(project: Project, track: int) -> list[dict]:
+    """The text on a text track joined into sentences: [{"text", "start", "end"}] in seconds.
+
+    Captions follow on from each other until one ends a sentence (. ? ! and the like) or the
+    next one comes more than SENTENCE_PAUSE seconds later.
+    """
+    target = project.track("text", track)
+    sentences: list[dict] = []
+    current: dict | None = None
+    for seg in sorted(target["segments"], key=project._start):
+        material = project._main_material(target, seg)
+        text = " ".join(schema.text_of(material).split()) if material else ""
+        if not text:
+            continue
+        start, end = project._start(seg) / 1e6, project._end(seg) / 1e6
+        if current is not None and start - current["end"] > SENTENCE_PAUSE:
+            sentences.append(current)
+            current = None
+        if current is None:
+            current = {"text": text, "start": start, "end": end}
+        else:
+            current["text"], current["end"] = analysis._join(current["text"], text), end
+        if analysis._ends_sentence(text):
+            sentences.append(current)
+            current = None
+    if current is not None:
+        sentences.append(current)
+    return sentences
+
+
+def _faster(rate: int, length: float, room: float) -> int:
+    """A rate that should make `length` seconds of speech fit in `room`.
+
+    Each step of the Windows rate scale is about 3^(1/10) faster: rate 10 is three times the
+    normal pace. The result is checked by speaking again, so this only has to be close.
+    """
+    steps = math.ceil(10 * math.log(length / max(room, 0.05), 3))
+    return min(speech.MAX_RATE, rate + max(1, steps))
+
+
+def _frame_at_or_after(project: Project, moment_us: int) -> float:
+    """The first frame boundary at or after a time, in seconds, for a clip that must not overlap."""
+    frames = math.ceil(moment_us * project.fps / 1_000_000 - 1e-6)
+    return frames / project.fps
+
+
+def voiceover(project: Project, *, text: str | None = None, text_track: int | None = None,
+              voice: str | None = None, rate: int = 0, start: float | None = None,
+              track: int | None = None, volume: float = 1.0, fit: bool = True,
+              folder: str | None = None) -> dict:
+    """Speak text, or the captions on a text track, with a Windows voice onto an audio track."""
+    has_text = text is not None and bool(str(text).strip())
+    if has_text == (text_track is not None):
+        raise CapCutError("Give either `text` to speak, or `from_text_track` to read the captions "
+                          "on a text track aloud; not both and not neither.")
+    if text_track is not None and start is not None:
+        raise CapCutError("`start` is for `text`. Captions are read aloud where each sentence "
+                          "first appears on screen.")
+    rate = speech.check_rate(rate)
+    name = speech.resolve_voice(voice)
+    files = speech.voice_folder(folder)
+    if track is None:
+        track = len(project.tracks("audio"))  # a track of its own, so nothing can collide
+
+    if has_text:
+        plans = [{"text": speech.clean_text(text), "at": start, "room": None}]
+    else:
+        sentences = caption_sentences(project, text_track)
+        if not sentences:
+            raise CapCutError(f"Text track {text_track} has no text to read aloud.")
+        end_of_video = project.duration_us() / 1e6
+        plans = []
+        for index, sentence in enumerate(sentences):
+            if index + 1 < len(sentences):
+                room = sentences[index + 1]["start"] - sentence["start"] - VOICE_GAP
+            else:
+                room = max(end_of_video, sentence["end"]) - sentence["start"]
+            plans.append({"text": sentence["text"], "at": sentence["start"], "room": room})
+
+    rates = [rate] * len(plans)
+    spoken = speech.synthesize([(plan["text"], rate) for plan in plans], voice=name, folder=files)
+    if fit:
+        for _ in range(FIT_ROUNDS):
+            over = [i for i, plan in enumerate(plans)
+                    if plan["room"] is not None and spoken[i]["duration"] > plan["room"]
+                    and rates[i] < speech.MAX_RATE]
+            if not over:
+                break
+            for i in over:
+                rates[i] = _faster(rates[i], spoken[i]["duration"], plans[i]["room"])
+            again = speech.synthesize([(plans[i]["text"], rates[i]) for i in over],
+                                      voice=name, folder=files)
+            for i, result in zip(over, again):
+                spoken[i] = result
+
+    lines, cursor = [], 0
+    for plan, result in zip(plans, spoken):
+        at = plan["at"]
+        if at is not None and cursor:
+            at = max(at, _frame_at_or_after(project, cursor))
+        seg = project.add_audio(result["path"], track=track, start=at, volume=volume)
+        cursor = project._end(seg)
+        line = {"text": plan["text"] if len(plan["text"]) <= 60 else plan["text"][:57] + "...",
+                "segment": seg["id"][:8], "start": round(project._start(seg) / 1e6, 3),
+                "end": round(cursor / 1e6, 3), "rate": result["rate"]}
+        if plan["at"] is not None and line["start"] - plan["at"] > 0.001:
+            line["late_by"] = round(line["start"] - plan["at"], 3)
+        lines.append(line)
+
+    out: dict = {"voice": name, "audio_track": track, "lines_spoken": len(lines),
+                 "files_folder": str(files), "lines": lines[:40]}
+    faster = sum(1 for line in lines if line["rate"] > rate)
+    late = [line for line in lines if "late_by" in line]
+    if faster:
+        out["spoken_faster"] = faster
+    if late:
+        out["note"] = (f"{len(late)} line(s) did not fit before the next caption"
+                       + ("" if fit else " (fit=false)") + " and start late, so later captions "
+                       "lead the voice. Shorten the wording, space the captions out, or use a "
+                       "higher rate.")
+    return out

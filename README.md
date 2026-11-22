@@ -83,6 +83,9 @@ then stops new sessions from connecting. With it the environment is only changed
 - **Listen:** find silences, scene cuts and loudness in a file; remove the pauses from a talking
   clip; lower music while a voice plays; with the optional speech package, transcribe speech
   and write captions timed to it.
+- **Speak:** turn text into a voice-over with the voices built into Windows, or read a
+  project's captions aloud, each sentence starting with its caption and sped up where it would
+  run into the next. Free and offline, but the voices sound synthetic.
 - **See its own work:** read media details, pull frames from footage (singly or as one labelled
   contact sheet), and render a rough preview video of the whole edit with FFmpeg.
 - **CapCut library items:** transitions, filters, clip and text animations, fonts, blend modes
@@ -113,8 +116,12 @@ then stops new sessions from connecting. With it the environment is only changed
   highlighted words are written the way other open-source tools write them and are covered by
   tests of the files, but have not been through the CapCut check described in
   [the findings](docs/capcut-format.md). `tools/new_features_tour.py` builds a project for that.
-- **No CapCut AI features**: background removal, CapCut's own auto captions and the like.
-  Captions from speech are done by the optional speech package instead.
+- **No CapCut AI features**: background removal, CapCut's own auto captions, CapCut's own
+  text-to-speech voices and the like. CapCut makes those on its servers, and a project file
+  only stores the finished result. Captions from speech are done by the optional speech
+  package instead, and voice-overs from text by the voices built into Windows.
+- **Text to speech is Windows only** for now. On macOS, make the voice-over elsewhere and
+  place it with `add_audio`.
 - **Encrypted projects cannot be edited.** Some CapCut and JianYing versions encrypt their
   project files; the server reports those as unreadable and leaves them alone. It makes no
   attempt to decrypt anything.

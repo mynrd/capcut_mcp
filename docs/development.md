@@ -13,7 +13,8 @@ src/capcut_mcp/
     library.py       Applying library items, masks, chroma key and voice effects
     catalogue.py     Names to CapCut ids, through the pycapcut package (the only module using it)
     analysis.py      Facts about a media file: silences, scene cuts, loudness, levels, speech to text
-    assist.py        Edits driven by the sound: cut_silence, duck_audio, auto_captions
+    assist.py        Edits driven by the sound: cut_silence, duck_audio, auto_captions, add_voiceover
+    speech.py        Text to speech with the Windows voices, through a PowerShell child process
     lint.py          check_project: what is broken or likely to disappoint
     doctor.py        The setup report: CapCut version, FFmpeg, optional parts
     compat.py        Which CapCut versions are confirmed, warned about or refused
@@ -87,6 +88,17 @@ rounds it.
   FFmpeg reads keypresses from standard input, so a child that inherits it could swallow
   protocol bytes. Every subprocess is started with `stdin=subprocess.DEVNULL`, and FFmpeg with
   `-nostdin`. Use `media.run_tool` for new calls.
+- **Text to speech uses what Windows already has.** `speech.py` runs System.Speech in a
+  PowerShell child process: no package, no download, nothing sent anywhere. PowerShell 7 is
+  tried first because its newer .NET also lists the newer voices (Microsoft Mark and the
+  voices of added languages); Windows PowerShell 5.1 only sees the older "Desktop" voices. The
+  script goes in as `-EncodedCommand`, the job (text, voice, rate, output paths) as a JSON file
+  named in an environment variable, and the answer comes back as a JSON file, errors included,
+  because stderr from an encoded command arrives wrapped in CLIXML. Several lines are spoken in
+  one PowerShell run, since starting PowerShell costs more than speaking a sentence.
+- **Voice files are media, not cache.** A spoken line is stored as
+  `voiceovers/<words>-<hash>.wav`, the hash covering engine, voice, rate and text, so the same
+  request reuses the file. Projects play these files, so nothing ever clears that folder.
 - **Keep what a cut does to a segment consistent.** A trim, split or speed change calls
   `_rebase_keyframes` (which adds a keyframe at the cut where a value is still changing) and
   `_refit_animations`. A new operation that changes a segment's length must call both.
@@ -125,7 +137,7 @@ returning a list sends one content block per item. Tools are marked read-only or
   `call_tool` converts the result to content blocks. If an SDK update breaks this, the test
   `test_batch_is_one_save_and_one_undo_step` fails first.
 - **Only `transcribe_media` is marked open-world**, because the first use of a speech model
-  downloads it. Everything else works on local files only.
+  downloads it. Everything else works on local files only, `add_voiceover` included.
 
 ## Tests
 
@@ -148,6 +160,9 @@ uv sync
   chroma key, voice effects and search. `test_analysis.py` and `test_render.py` check the media
   analysis and the preview renderer against generated media, down to pixel colours.
 - The speech package is not needed by the tests: `analysis._run_whisper` is replaced.
+- `test_speech.py` covers voice-overs. `speech._run`, the one place that starts PowerShell, is
+  replaced by a stand-in that writes silent WAV files whose length follows the text and rate.
+  One test uses the real Windows voice and is skipped on a machine without voices.
 - `check_integrity()` in `test_project.py` asserts what CapCut needs of any file: every
   reference resolves, segments on a track do not overlap, the duration matches.
 
@@ -206,6 +221,11 @@ uv run --no-sync python tools/extract_templates.py src/capcut_mcp/templates.json
 
 - Masks, chroma key, voice effects and highlighted words have not been through the CapCut
   check yet (`tools/new_features_tour.py` builds the project for it).
+- Text to speech is Windows only. macOS has `say`, which could fill the same role in
+  `speech.py`; nothing has been tried there. Voices from other engines (Piper, cloud services)
+  would also go behind `speech.synthesize`.
+- A voice-over line is timed to its caption's start; the words inside a line are not matched to
+  the individual captions. `auto_captions` on the voice track can re-time captions to it.
 - Nothing has been confirmed on CapCut 9.x or on macOS.
 - Keyframes are linear only; CapCut's curve presets are not written, and a keyframe added at a
   cut assumes a straight line between its neighbours.

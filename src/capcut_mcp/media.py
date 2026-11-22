@@ -42,16 +42,19 @@ PROBE_TIMEOUT = 60.0
 FRAME_TIMEOUT = 120.0
 
 
-def run_tool(command: list[str], *, timeout: float, what: str) -> subprocess.CompletedProcess:
-    """Run ffprobe or ffmpeg and capture what it prints.
+def run_tool(command: list[str], *, timeout: float, what: str,
+             env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """Run ffprobe, ffmpeg or another helper program and capture what it prints.
 
     stdin is closed on purpose. This server talks to its client over its own stdin, and a child
     process that inherits it (FFmpeg reads keypresses from stdin) could swallow protocol bytes.
+    `env` adds variables to the child's environment.
     """
     try:
         return subprocess.run(
             command, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            stdin=subprocess.DEVNULL, creationflags=_NO_WINDOW, timeout=timeout)
+            stdin=subprocess.DEVNULL, creationflags=_NO_WINDOW, timeout=timeout,
+            env={**os.environ, **env} if env else None)
     except subprocess.TimeoutExpired:
         raise CapCutError(
             f"{what} took longer than {int(timeout)} seconds and was stopped. The file may be "
